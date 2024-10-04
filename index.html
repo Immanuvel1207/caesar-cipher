@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Data Encoder/Decoder</title>
+    <title>Encrypt and Decrypt Data</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -16,23 +16,16 @@
             padding: 10px;
             margin: 10px;
         }
-        img {
-            max-width: 100%;
-            height: auto;
-        }
     </style>
 </head>
 <body>
 
-    <h1>Image Data Encoder/Decoder</h1>
+    <h1>Encrypt and Decrypt Data</h1>
 
     <div class="container">
-        <h2>Upload Image for Encoding</h2>
-        <input type="file" id="imageInput" accept="image/*" />
-        <canvas id="canvas" style="display: none;"></canvas>
-
-        <h2>Encrypt Data into Image</h2>
-        <label>Data to encode: </label>
+        <!-- Encryption Section -->
+        <h2>Encrypt Data</h2>
+        <label>Data to encrypt: </label>
         <input type="text" id="dataInput" placeholder="Enter data"><br>
         <label>Shift value: </label>
         <input type="number" id="shiftValue" placeholder="Shift value"><br>
@@ -40,151 +33,104 @@
         <input type="number" id="modValue" placeholder="Mod value"><br>
         <label>Password (4 digits): </label>
         <input type="password" id="passwordInput" maxlength="4" placeholder="Enter 4-digit password"><br>
-        <button onclick="encodeData()">Encode Data</button>
+        <button onclick="encryptData()">Encrypt Data</button>
+        
+        <h3>Encrypted Data: </h3>
+        <p id="encryptedOutput"></p>
 
-        <h2>Decrypt Data from Image</h2>
-        <input type="file" id="decodeImageInput" accept="image/*" /><br>
-        <label>Password: </label>
-        <input type="password" id="decodePasswordInput" maxlength="4" placeholder="Enter 4-digit password"><br>
-        <button onclick="decodeData()">Decode Data</button>
+        <!-- Decryption Section -->
+        <h2>Decrypt Data</h2>
+        <label>Encrypted data: </label>
+        <input type="text" id="encryptedDataInput" placeholder="Enter encrypted data"><br>
+        <label>Shift value: </label>
+        <input type="number" id="decryptShiftValue" placeholder="Shift value"><br>
+        <label>Mod value: </label>
+        <input type="number" id="decryptModValue" placeholder="Mod value"><br>
+        <label>Password (4 digits): </label>
+        <input type="password" id="decryptPasswordInput" maxlength="4" placeholder="Enter 4-digit password"><br>
+        <button onclick="decryptData()">Decrypt Data</button>
 
-        <h3>Encoded/Decoded Data: </h3>
-        <p id="output"></p>
-        <a id="downloadLink" style="display:none;">Download Encoded Image</a>
+        <h3>Decrypted Data: </h3>
+        <p id="decryptedOutput"></p>
     </div>
 
     <script>
-        let imageCanvas = document.getElementById('canvas');
-        let ctx = imageCanvas.getContext('2d');
-        let imageInput = document.getElementById('imageInput');
-        let decodeImageInput = document.getElementById('decodeImageInput');
-        let imgWidth, imgHeight;
-
-        // Load the image onto the canvas
-        imageInput.addEventListener('change', function(event) {
-            let file = event.target.files[0];
-            let reader = new FileReader();
-            reader.onload = function(e) {
-                let img = new Image();
-                img.src = e.target.result;
-                img.onload = function() {
-                    imgWidth = img.width;
-                    imgHeight = img.height;
-                    imageCanvas.width = imgWidth;
-                    imageCanvas.height = imgHeight;
-                    ctx.drawImage(img, 0, 0);
-                };
-            };
-            reader.readAsDataURL(file);
-        });
-
-        // Caesar Cipher Encryption
+        // Encrypt only alphabetic characters and numbers (optional)
         function caesarCipherEncrypt(text, shift, mod) {
             return text.split('').map(char => {
                 let code = char.charCodeAt(0);
-                return String.fromCharCode(((code + shift) % mod));
+                // Shift only alphabetic and numeric characters
+                if ((code >= 65 && code <= 90) || (code >= 97 && code <= 122)) {  // A-Z and a-z
+                    let base = code >= 97 ? 97 : 65;  // Determine base for lowercase/uppercase
+                    return String.fromCharCode(((code - base + shift) % 26) + base);
+                } else if (code >= 48 && code <= 57) { // 0-9
+                    return String.fromCharCode(((code - 48 + shift) % 10) + 48);
+                } else {
+                    // Keep non-alphabetic characters unchanged
+                    return char;
+                }
             }).join('');
         }
-
-        // Caesar Cipher Decryption
+    
+        // Decrypt only alphabetic characters and numbers (optional)
         function caesarCipherDecrypt(text, shift, mod) {
             return text.split('').map(char => {
                 let code = char.charCodeAt(0);
-                return String.fromCharCode(((code - shift + mod) % mod));
+                // Decrypt only alphabetic and numeric characters
+                if ((code >= 65 && code <= 90) || (code >= 97 && code <= 122)) {  // A-Z and a-z
+                    let base = code >= 97 ? 97 : 65;  // Determine base for lowercase/uppercase
+                    return String.fromCharCode(((code - base - shift + 26) % 26) + base);
+                } else if (code >= 48 && code <= 57) { // 0-9
+                    return String.fromCharCode(((code - 48 - shift + 10) % 10) + 48);
+                } else {
+                    // Keep non-alphabetic characters unchanged
+                    return char;
+                }
             }).join('');
         }
-
-        // Function to encode data in image
-        function encodeData() {
+    
+        // Encrypt Data Function (unchanged)
+        function encryptData() {
             let data = document.getElementById('dataInput').value;
             let shift = parseInt(document.getElementById('shiftValue').value);
             let mod = parseInt(document.getElementById('modValue').value);
             let password = document.getElementById('passwordInput').value;
-
+    
             if (password.length !== 4) {
                 alert("Password must be 4 digits");
                 return;
             }
-
+    
             let encryptedData = caesarCipherEncrypt(data, shift, mod);
-
-            let dataIndex = 0;
-            let imageData = ctx.getImageData(0, 0, imgWidth, imgHeight);
-
-            // Encode the encrypted data in the image (not password or additional metadata)
-            for (let i = 0; i < imageData.data.length && dataIndex < encryptedData.length; i += 4) {
-                let charCode = encryptedData.charCodeAt(dataIndex);
-                for (let bit = 0; bit < 8; bit++) {
-                    let pixelIndex = i + bit % 3; // Use R, G, or B channels for LSB encoding
-                    let bitValue = (charCode >> (7 - bit)) & 1;
-                    imageData.data[pixelIndex] = (imageData.data[pixelIndex] & 0xFE) | bitValue;
-                }
-                dataIndex++;
-            }
-
-            ctx.putImageData(imageData, 0, 0);
-
-            // Enable the download link for the encoded image
-            let downloadLink = document.getElementById('downloadLink');
-            downloadLink.href = imageCanvas.toDataURL();
-            downloadLink.download = 'encoded_image.png';
-            downloadLink.style.display = 'inline';
-            downloadLink.textContent = 'Download Encoded Image';
-
-            document.getElementById('output').textContent = 'Data encoded successfully!';
+            document.getElementById('encryptedOutput').textContent = `Encrypted Data: ${encryptedData}`;
         }
-
-        // Load a separate image for decoding
-        decodeImageInput.addEventListener('change', function(event) {
-            let file = event.target.files[0];
-            let reader = new FileReader();
-            reader.onload = function(e) {
-                let img = new Image();
-                img.src = e.target.result;
-                img.onload = function() {
-                    imgWidth = img.width;
-                    imgHeight = img.height;
-                    imageCanvas.width = imgWidth;
-                    imageCanvas.height = imgHeight;
-                    ctx.drawImage(img, 0, 0);
-                };
-            };
-            reader.readAsDataURL(file);
-        });
-
-        // Function to decode data from image
-        function decodeData() {
-            let password = document.getElementById('decodePasswordInput').value;
-
+    
+        // Decrypt Data Function (unchanged)
+        function decryptData() {
+            let encryptedData = document.getElementById('encryptedDataInput').value;
+            let shift = parseInt(document.getElementById('decryptShiftValue').value);
+            let mod = parseInt(document.getElementById('decryptModValue').value);
+            let password = document.getElementById('decryptPasswordInput').value;
+    
             if (password.length !== 4) {
                 alert("Password must be 4 digits");
                 return;
             }
-
-            let shift = parseInt(document.getElementById('shiftValue').value);
-            let mod = parseInt(document.getElementById('modValue').value);
-
-            let imageData = ctx.getImageData(0, 0, imgWidth, imgHeight);
-            let extractedBits = [];
-            let extractedData = '';
-
-            // Extract the LSB from the R, G, and B channels of the pixels where we encoded the data
-            for (let i = 0; i < imageData.data.length; i += 4) {
-                let byte = 0;
-                for (let bit = 0; bit < 8; bit++) {
-                    let pixelIndex = i + bit % 3;
-                    let bitValue = (imageData.data[pixelIndex] & 1);
-                    byte = (byte << 1) | bitValue;
-                }
-                extractedData += String.fromCharCode(byte);
+    
+            let correctPassword = document.getElementById('passwordInput').value;
+    
+            // Check if the password matches
+            if (password !== correctPassword) {
+                alert("Password is incorrect!");
+                return;
             }
-
-            // Remove potential padding and stop on null character
-            extractedData = extractedData.replace(/\0/g, '');
-
-            let decryptedData = caesarCipherDecrypt(extractedData, shift, mod);
-            document.getElementById('output').textContent = 'Decoded data: ' + decryptedData;
+    
+            // Decrypt the data if password is correct
+            let decryptedData = caesarCipherDecrypt(encryptedData, shift, mod);
+            document.getElementById('decryptedOutput').textContent = `Decrypted Data: ${decryptedData}`;
         }
     </script>
+    
+
 </body>
 </html>
