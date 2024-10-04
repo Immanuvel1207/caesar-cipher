@@ -111,15 +111,15 @@
             let dataIndex = 0;
             let imageData = ctx.getImageData(0, 0, imgWidth, imgHeight);
 
-            // Encode only the encrypted data in the image (not password or additional metadata)
-            for (let i = 0; i < imageData.data.length; i += 4) {
-                if (dataIndex < encryptedData.length) {
-                    let charCode = encryptedData.charCodeAt(dataIndex);
-                    imageData.data[i] = (imageData.data[i] & 0xFE) | (charCode & 1); // Storing in the LSB
-                    dataIndex++;
-                } else {
-                    break;
+            // Encode the encrypted data in the image (not password or additional metadata)
+            for (let i = 0; i < imageData.data.length && dataIndex < encryptedData.length; i += 4) {
+                let charCode = encryptedData.charCodeAt(dataIndex);
+                for (let bit = 0; bit < 8; bit++) {
+                    let pixelIndex = i + bit % 3; // Use R, G, or B channels for LSB encoding
+                    let bitValue = (charCode >> (7 - bit)) & 1;
+                    imageData.data[pixelIndex] = (imageData.data[pixelIndex] & 0xFE) | bitValue;
                 }
+                dataIndex++;
             }
 
             ctx.putImageData(imageData, 0, 0);
@@ -165,12 +165,22 @@
             let mod = parseInt(document.getElementById('modValue').value);
 
             let imageData = ctx.getImageData(0, 0, imgWidth, imgHeight);
+            let extractedBits = [];
             let extractedData = '';
 
-            // Extract encrypted data from the LSB of the image
+            // Extract the LSB from the R, G, and B channels of the pixels where we encoded the data
             for (let i = 0; i < imageData.data.length; i += 4) {
-                extractedData += String.fromCharCode(imageData.data[i] & 1);
+                let byte = 0;
+                for (let bit = 0; bit < 8; bit++) {
+                    let pixelIndex = i + bit % 3;
+                    let bitValue = (imageData.data[pixelIndex] & 1);
+                    byte = (byte << 1) | bitValue;
+                }
+                extractedData += String.fromCharCode(byte);
             }
+
+            // Remove potential padding and stop on null character
+            extractedData = extractedData.replace(/\0/g, '');
 
             let decryptedData = caesarCipherDecrypt(extractedData, shift, mod);
             document.getElementById('output').textContent = 'Decoded data: ' + decryptedData;
