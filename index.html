@@ -3,134 +3,285 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Encrypt and Decrypt Data</title>
+    <title>Steganography with Caesar Cipher</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            text-align: center;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
         }
         .container {
-            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .input-group {
+            margin: 10px 0;
+        }
+        canvas {
+            max-width: 100%;
+            border: 1px solid #ccc;
         }
         input, button {
-            padding: 10px;
-            margin: 10px;
+            padding: 8px;
+            margin: 5px;
+        }
+        #messageLength {
+            color: #666;
+            font-size: 0.9em;
+        }
+        .error {
+            color: red;
+            margin: 10px 0;
         }
     </style>
+    <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-
-    <h1>Encrypt and Decrypt Data</h1>
-
+    <h1>Steganography with Caesar Cipher</h1>
+    
     <div class="container">
         <!-- Encryption Section -->
-        <h2>Encrypt Data</h2>
-        <label>Data to encrypt: </label>
-        <input type="text" id="dataInput" placeholder="Enter data"><br>
-        <label>Shift value: </label>
-        <input type="number" id="shiftValue" placeholder="Shift value"><br>
-        <label>Mod value: </label>
-        <input type="number" id="modValue" placeholder="Mod value"><br>
-        <label>Password (4 digits): </label>
-        <input type="password" id="passwordInput" maxlength="4" placeholder="Enter 4-digit password"><br>
-        <button onclick="encryptData()">Encrypt Data</button>
-        
-        <h3>Encrypted Data: </h3>
-        <p id="encryptedOutput"></p>
+        <div class="encode-section">
+            <h2>Encode Message</h2>
+            <div class="input-group">
+                <label>Message to hide: </label>
+                <input type="text" id="message" placeholder="Enter your message" oninput="updateMessageLength()">
+                <div id="messageLength"></div>
+            </div>
+            <div class="input-group">
+                <label>Shift value: </label>
+                <input type="number" id="shift" value="3" min="1" max="25">
+            </div>
+            <div class="input-group">
+                <label>Mod value: </label>
+                <input type="number" id="mod" value="26" min="1">
+            </div>
+            <div class="input-group">
+                <label>Password (4 digits): </label>
+                <input type="password" id="password" maxlength="4" placeholder="Enter 4-digit password">
+            </div>
+            <div class="input-group">
+                <label>Select Image: </label>
+                <input type="file" id="imageInput" accept="image/*" onchange="checkImageCapacity()">
+                <div id="capacityInfo"></div>
+            </div>
+            <button onclick="encodeMessage()">Encode Message</button>
+            <canvas id="originalCanvas"></canvas>
+            <a id="downloadLink" style="display: none;">Download Encoded Image</a>
+        </div>
 
         <!-- Decryption Section -->
-        <h2>Decrypt Data</h2>
-        <label>Encrypted data: </label>
-        <input type="text" id="encryptedDataInput" placeholder="Enter encrypted data"><br>
-        <label>Shift value: </label>
-        <input type="number" id="decryptShiftValue" placeholder="Shift value"><br>
-        <label>Mod value: </label>
-        <input type="number" id="decryptModValue" placeholder="Mod value"><br>
-        <label>Password (4 digits): </label>
-        <input type="password" id="decryptPasswordInput" maxlength="4" placeholder="Enter 4-digit password"><br>
-        <button onclick="decryptData()">Decrypt Data</button>
-
-        <h3>Decrypted Data: </h3>
-        <p id="decryptedOutput"></p>
+        <div class="decode-section">
+            <h2>Decode Message</h2>
+            <div class="input-group">
+                <label>Select Encoded Image: </label>
+                <input type="file" id="encodedImageInput" accept="image/*">
+            </div>
+            <div class="input-group">
+                <label>Password (4 digits): </label>
+                <input type="password" id="decodePassword" maxlength="4" placeholder="Enter 4-digit password">
+            </div>
+            <button onclick="decodeMessage()">Decode Message</button>
+            <div id="decodedMessage"></div>
+        </div>
     </div>
 
     <script>
-        // Encrypt only alphabetic characters and numbers (optional)
+        // Constants for header structure
+        const HEADER_LENGTH = 32; // 8 bits for shift + 8 bits for mod + 16 bits for message length
+        
         function caesarCipherEncrypt(text, shift, mod) {
             return text.split('').map(char => {
                 let code = char.charCodeAt(0);
-                // Shift only alphabetic and numeric characters
-                if ((code >= 65 && code <= 90) || (code >= 97 && code <= 122)) {  // A-Z and a-z
-                    let base = code >= 97 ? 97 : 65;  // Determine base for lowercase/uppercase
+                if ((code >= 65 && code <= 90) || (code >= 97 && code <= 122)) {
+                    let base = code >= 97 ? 97 : 65;
                     return String.fromCharCode(((code - base + shift) % 26) + base);
-                } else if (code >= 48 && code <= 57) { // 0-9
+                } else if (code >= 48 && code <= 57) {
                     return String.fromCharCode(((code - 48 + shift) % 10) + 48);
-                } else {
-                    // Keep non-alphabetic characters unchanged
-                    return char;
                 }
+                return char;
             }).join('');
         }
-    
-        // Decrypt only alphabetic characters and numbers (optional)
+
         function caesarCipherDecrypt(text, shift, mod) {
             return text.split('').map(char => {
                 let code = char.charCodeAt(0);
-                // Decrypt only alphabetic and numeric characters
-                if ((code >= 65 && code <= 90) || (code >= 97 && code <= 122)) {  // A-Z and a-z
-                    let base = code >= 97 ? 97 : 65;  // Determine base for lowercase/uppercase
+                if ((code >= 65 && code <= 90) || (code >= 97 && code <= 122)) {
+                    let base = code >= 97 ? 97 : 65;
                     return String.fromCharCode(((code - base - shift + 26) % 26) + base);
-                } else if (code >= 48 && code <= 57) { // 0-9
+                } else if (code >= 48 && code <= 57) {
                     return String.fromCharCode(((code - 48 - shift + 10) % 10) + 48);
-                } else {
-                    // Keep non-alphabetic characters unchanged
-                    return char;
                 }
+                return char;
             }).join('');
         }
-    
-        // Encrypt Data Function (unchanged)
-        function encryptData() {
-            let data = document.getElementById('dataInput').value;
-            let shift = parseInt(document.getElementById('shiftValue').value);
-            let mod = parseInt(document.getElementById('modValue').value);
-            let password = document.getElementById('passwordInput').value;
-    
-            if (password.length !== 4) {
-                alert("Password must be 4 digits");
-                return;
-            }
-    
-            let encryptedData = caesarCipherEncrypt(data, shift, mod);
-            document.getElementById('encryptedOutput').textContent = `Encrypted Data: ${encryptedData}`;
+
+        function textToBinary(text) {
+            return text.split('').map(char => 
+                char.charCodeAt(0).toString(2).padStart(8, '0')
+            ).join('');
         }
-    
-        // Decrypt Data Function (unchanged)
-        function decryptData() {
-            let encryptedData = document.getElementById('encryptedDataInput').value;
-            let shift = parseInt(document.getElementById('decryptShiftValue').value);
-            let mod = parseInt(document.getElementById('decryptModValue').value);
-            let password = document.getElementById('decryptPasswordInput').value;
-    
+
+        function binaryToText(binary) {
+            const bytes = binary.match(/.{1,8}/g) || [];
+            return bytes.map(byte => 
+                String.fromCharCode(parseInt(byte, 2))
+            ).join('');
+        }
+
+        function updateMessageLength() {
+            const message = document.getElementById('message').value;
+            const lengthDisplay = document.getElementById('messageLength');
+            const binaryLength = textToBinary(message).length;
+            lengthDisplay.textContent = `Message length: ${message.length} characters (${binaryLength} bits)`;
+        }
+
+        function checkImageCapacity() {
+            const imageInput = document.getElementById('imageInput');
+            const capacityInfo = document.getElementById('capacityInfo');
+            
+            if (imageInput.files && imageInput.files[0]) {
+                const img = new Image();
+                img.src = URL.createObjectURL(imageInput.files[0]);
+                
+                img.onload = function() {
+                    const maxBits = (img.width * img.height * 3) - HEADER_LENGTH;
+                    const maxChars = Math.floor(maxBits / 8);
+                    capacityInfo.textContent = `This image can store up to ${maxChars} characters`;
+                    capacityInfo.style.color = 'green';
+                };
+            }
+        }
+
+        async function encodeMessage() {
+            const message = document.getElementById('message').value;
+            const shift = parseInt(document.getElementById('shift').value);
+            const mod = parseInt(document.getElementById('mod').value);
+            const password = document.getElementById('password').value;
+            const imageInput = document.getElementById('imageInput');
+
+            // Validation
+            if (!message) {
+                alert("Please enter a message to hide!");
+                return;
+            }
             if (password.length !== 4) {
-                alert("Password must be 4 digits");
+                alert("Password must be 4 digits!");
                 return;
             }
-    
-            let correctPassword = document.getElementById('passwordInput').value;
-    
-            // Check if the password matches
-            if (password !== correctPassword) {
-                alert("Password is incorrect!");
+            if (!imageInput.files[0]) {
+                alert("Please select an image!");
                 return;
             }
-    
-            // Decrypt the data if password is correct
-            let decryptedData = caesarCipherDecrypt(encryptedData, shift, mod);
-            document.getElementById('decryptedOutput').textContent = `Decrypted Data: ${decryptedData}`;
+
+            // Encrypt the message
+            const encryptedMessage = caesarCipherEncrypt(message, shift, mod);
+            
+            // Convert to binary
+            const binaryMessage = textToBinary(encryptedMessage);
+            const messageLength = binaryMessage.length;
+            
+            // Create header (shift + mod + message length)
+            const binaryShift = shift.toString(2).padStart(8, '0');
+            const binaryMod = mod.toString(2).padStart(8, '0');
+            const binaryMessageLength = messageLength.toString(2).padStart(16, '0');
+            
+            // Combine header and message
+            const fullBinaryData = binaryShift + binaryMod + binaryMessageLength + binaryMessage;
+
+            // Load and process image
+            const img = new Image();
+            img.src = URL.createObjectURL(imageInput.files[0]);
+            
+            img.onload = function() {
+                const canvas = document.getElementById('originalCanvas');
+                const ctx = canvas.getContext('2d');
+                
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const data = imageData.data;
+
+                // Check capacity
+                if (fullBinaryData.length > (data.length * 3)) {
+                    alert("Message is too large for this image!");
+                    return;
+                }
+
+                // Embed the binary data
+                let bitIndex = 0;
+                for (let i = 0; i < data.length && bitIndex < fullBinaryData.length; i += 4) {
+                    // Modify R, G, B channels (skip Alpha)
+                    for (let j = 0; j < 3 && bitIndex < fullBinaryData.length; j++) {
+                        data[i + j] = (data[i + j] & 254) | parseInt(fullBinaryData[bitIndex]);
+                        bitIndex++;
+                    }
+                }
+
+                ctx.putImageData(imageData, 0, 0);
+
+                // Create download link
+                const downloadLink = document.getElementById('downloadLink');
+                downloadLink.href = canvas.toDataURL('image/png');
+                downloadLink.download = 'encoded_image.png';
+                downloadLink.style.display = 'block';
+                downloadLink.textContent = 'Download Encoded Image';
+            };
+        }
+
+        async function decodeMessage() {
+            const password = document.getElementById('decodePassword').value;
+            const imageInput = document.getElementById('encodedImageInput');
+
+            if (password.length !== 4) {
+                alert("Password must be 4 digits!");
+                return;
+            }
+            if (!imageInput.files[0]) {
+                alert("Please select an encoded image!");
+                return;
+            }
+
+            const img = new Image();
+            img.src = URL.createObjectURL(imageInput.files[0]);
+            
+            img.onload = function() {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const data = imageData.data;
+
+                // Extract binary data
+                let binaryData = '';
+                for (let i = 0; i < data.length; i += 4) {
+                    // Extract from R, G, B channels (skip Alpha)
+                    for (let j = 0; j < 3; j++) {
+                        binaryData += data[i + j] & 1;
+                    }
+                }
+
+                // Extract header information
+                const shift = parseInt(binaryData.slice(0, 8), 2);
+                const mod = parseInt(binaryData.slice(8, 16), 2);
+                const messageLength = parseInt(binaryData.slice(16, 32), 2);
+
+                // Extract and decode message
+                const messageBinary = binaryData.slice(32, 32 + messageLength);
+                const encodedMessage = binaryToText(messageBinary);
+                const decryptedMessage = caesarCipherDecrypt(encodedMessage, shift, mod);
+                
+                document.getElementById('decodedMessage').textContent = decryptedMessage;
+            };
         }
     </script>
-    
-
 </body>
 </html>
