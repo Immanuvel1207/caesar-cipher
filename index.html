@@ -5,38 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Steganography with Caesar Cipher</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
+        /* Previous CSS remains the same */
+        .encrypted-preview {
+            margin: 15px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
         }
-        .container {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
+        .encrypted-preview h3 {
+            margin-bottom: 10px;
+            color: #495057;
         }
-        .input-group {
-            margin: 10px 0;
-        }
-        canvas {
-            max-width: 100%;
-            border: 1px solid #ccc;
-        }
-        input, button {
-            padding: 8px;
-            margin: 5px;
-        }
-        #messageLength {
-            color: #666;
-            font-size: 0.9em;
-        }
-        .error {
-            color: red;
-            margin: 10px 0;
+        .preview-content {
+            font-family: monospace;
+            word-break: break-all;
         }
     </style>
-    <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
     <h1>Steganography with Caesar Cipher</h1>
@@ -60,7 +45,7 @@
             </div>
             <div class="input-group">
                 <label>Password (4 digits): </label>
-                <input type="password" id="password" maxlength="4" placeholder="Enter 4-digit password">
+                <input type="password" id="password" maxlength="4" placeholder="Enter 4-digit password" pattern="[0-9]*">
             </div>
             <div class="input-group">
                 <label>Select Image: </label>
@@ -68,6 +53,10 @@
                 <div id="capacityInfo"></div>
             </div>
             <button onclick="encodeMessage()">Encode Message</button>
+            <div id="encryptedPreview" class="encrypted-preview" style="display: none;">
+                <h3>Encrypted Data Preview:</h3>
+                <div class="preview-content"></div>
+            </div>
             <canvas id="originalCanvas"></canvas>
             <a id="downloadLink" style="display: none;">Download Encoded Image</a>
         </div>
@@ -81,7 +70,7 @@
             </div>
             <div class="input-group">
                 <label>Password (4 digits): </label>
-                <input type="password" id="decodePassword" maxlength="4" placeholder="Enter 4-digit password">
+                <input type="password" id="decodePassword" maxlength="4" placeholder="Enter 4-digit password" pattern="[0-9]*">
             </div>
             <button onclick="decodeMessage()">Decode Message</button>
             <div id="decodedMessage"></div>
@@ -89,17 +78,27 @@
     </div>
 
     <script>
-        // Constants for header structure
-        const HEADER_LENGTH = 32; // 8 bits for shift + 8 bits for mod + 16 bits for message length
+        const HEADER_LENGTH = 48; // 8 bits shift + 8 bits mod + 16 bits message length + 16 bits password hash
         
+        // Hash function for password
+        function simpleHash(password) {
+            let hash = 0;
+            for (let i = 0; i < password.length; i++) {
+                hash = ((hash << 5) - hash) + password.charCodeAt(i);
+                hash = hash & 0xFFFF; // Keep only 16 bits
+            }
+            return hash;
+        }
+
         function caesarCipherEncrypt(text, shift, mod) {
             return text.split('').map(char => {
                 let code = char.charCodeAt(0);
-                if ((code >= 65 && code <= 90) || (code >= 97 && code <= 122)) {
-                    let base = code >= 97 ? 97 : 65;
-                    return String.fromCharCode(((code - base + shift) % 26) + base);
-                } else if (code >= 48 && code <= 57) {
-                    return String.fromCharCode(((code - 48 + shift) % 10) + 48);
+                if ((code >= 65 && code <= 90)) { // Uppercase
+                    return String.fromCharCode(65 + ((code - 65 + shift) % mod));
+                } else if (code >= 97 && code <= 122) { // Lowercase
+                    return String.fromCharCode(97 + ((code - 97 + shift) % mod));
+                } else if (code >= 48 && code <= 57) { // Numbers
+                    return String.fromCharCode(48 + ((code - 48 + shift) % 10));
                 }
                 return char;
             }).join('');
@@ -108,16 +107,18 @@
         function caesarCipherDecrypt(text, shift, mod) {
             return text.split('').map(char => {
                 let code = char.charCodeAt(0);
-                if ((code >= 65 && code <= 90) || (code >= 97 && code <= 122)) {
-                    let base = code >= 97 ? 97 : 65;
-                    return String.fromCharCode(((code - base - shift + 26) % 26) + base);
-                } else if (code >= 48 && code <= 57) {
-                    return String.fromCharCode(((code - 48 - shift + 10) % 10) + 48);
+                if ((code >= 65 && code <= 90)) { // Uppercase
+                    return String.fromCharCode(65 + ((code - 65 - shift + mod) % mod));
+                } else if (code >= 97 && code <= 122) { // Lowercase
+                    return String.fromCharCode(97 + ((code - 97 - shift + mod) % mod));
+                } else if (code >= 48 && code <= 57) { // Numbers
+                    return String.fromCharCode(48 + ((code - 48 - shift + 10) % 10));
                 }
                 return char;
             }).join('');
         }
 
+        // Rest of the helper functions remain the same
         function textToBinary(text) {
             return text.split('').map(char => 
                 char.charCodeAt(0).toString(2).padStart(8, '0')
@@ -167,8 +168,8 @@
                 alert("Please enter a message to hide!");
                 return;
             }
-            if (password.length !== 4) {
-                alert("Password must be 4 digits!");
+            if (!/^\d{4}$/.test(password)) {
+                alert("Password must be exactly 4 digits!");
                 return;
             }
             if (!imageInput.files[0]) {
@@ -179,19 +180,26 @@
             // Encrypt the message
             const encryptedMessage = caesarCipherEncrypt(message, shift, mod);
             
+            // Show encrypted preview
+            const previewDiv = document.getElementById('encryptedPreview');
+            previewDiv.style.display = 'block';
+            previewDiv.querySelector('.preview-content').textContent = encryptedMessage;
+
             // Convert to binary
             const binaryMessage = textToBinary(encryptedMessage);
             const messageLength = binaryMessage.length;
             
-            // Create header (shift + mod + message length)
+            // Create header with password hash
+            const passwordHash = simpleHash(password);
             const binaryShift = shift.toString(2).padStart(8, '0');
             const binaryMod = mod.toString(2).padStart(8, '0');
             const binaryMessageLength = messageLength.toString(2).padStart(16, '0');
+            const binaryPasswordHash = passwordHash.toString(2).padStart(16, '0');
             
             // Combine header and message
-            const fullBinaryData = binaryShift + binaryMod + binaryMessageLength + binaryMessage;
+            const fullBinaryData = binaryShift + binaryMod + binaryMessageLength + binaryPasswordHash + binaryMessage;
 
-            // Load and process image
+            // Process image
             const img = new Image();
             img.src = URL.createObjectURL(imageInput.files[0]);
             
@@ -215,7 +223,6 @@
                 // Embed the binary data
                 let bitIndex = 0;
                 for (let i = 0; i < data.length && bitIndex < fullBinaryData.length; i += 4) {
-                    // Modify R, G, B channels (skip Alpha)
                     for (let j = 0; j < 3 && bitIndex < fullBinaryData.length; j++) {
                         data[i + j] = (data[i + j] & 254) | parseInt(fullBinaryData[bitIndex]);
                         bitIndex++;
@@ -224,7 +231,6 @@
 
                 ctx.putImageData(imageData, 0, 0);
 
-                // Create download link
                 const downloadLink = document.getElementById('downloadLink');
                 downloadLink.href = canvas.toDataURL('image/png');
                 downloadLink.download = 'encoded_image.png';
@@ -236,9 +242,10 @@
         async function decodeMessage() {
             const password = document.getElementById('decodePassword').value;
             const imageInput = document.getElementById('encodedImageInput');
+            const decodedMessageDiv = document.getElementById('decodedMessage');
 
-            if (password.length !== 4) {
-                alert("Password must be 4 digits!");
+            if (!/^\d{4}$/.test(password)) {
+                alert("Password must be exactly 4 digits!");
                 return;
             }
             if (!imageInput.files[0]) {
@@ -263,7 +270,6 @@
                 // Extract binary data
                 let binaryData = '';
                 for (let i = 0; i < data.length; i += 4) {
-                    // Extract from R, G, B channels (skip Alpha)
                     for (let j = 0; j < 3; j++) {
                         binaryData += data[i + j] & 1;
                     }
@@ -273,15 +279,25 @@
                 const shift = parseInt(binaryData.slice(0, 8), 2);
                 const mod = parseInt(binaryData.slice(8, 16), 2);
                 const messageLength = parseInt(binaryData.slice(16, 32), 2);
+                const storedPasswordHash = parseInt(binaryData.slice(32, 48), 2);
+
+                // Verify password
+                const inputPasswordHash = simpleHash(password);
+                if (inputPasswordHash !== storedPasswordHash) {
+                    decodedMessageDiv.textContent = "Incorrect password!";
+                    decodedMessageDiv.style.color = "red";
+                    return;
+                }
 
                 // Extract and decode message
-                const messageBinary = binaryData.slice(32, 32 + messageLength);
+                const messageBinary = binaryData.slice(48, 48 + messageLength);
                 const encodedMessage = binaryToText(messageBinary);
                 const decryptedMessage = caesarCipherDecrypt(encodedMessage, shift, mod);
                 
-                document.getElementById('decodedMessage').textContent = decryptedMessage;
+                decodedMessageDiv.textContent = decryptedMessage;
+                decodedMessageDiv.style.color = "green";
             };
         }
-    </script>
+    </script>   
 </body>
 </html>
